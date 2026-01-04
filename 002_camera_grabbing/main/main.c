@@ -50,7 +50,7 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 
 // name in the ESP_LOG<X> to identify where it comes from
 static const char *TAG = "camera_stream";
-static const bool enable_performance_logging = true;
+static const bool enable_performance_logging = false;
 
 // Global camera buffer
 camera_fb_t *fb = NULL;
@@ -236,7 +236,9 @@ void app_main(void) {
     ESP_LOGI(TAG, "PSRAM initialized successfully");
   }
 
-  xTaskCreate(stats_task, "stats_task", 2048, NULL, 1, NULL);
+  if (enable_performance_logging) {
+    xTaskCreate(stats_task, "stats_task", 2048, NULL, 1, NULL);
+  }
 
   // set console baud rate for better serial output
   esp_log_level_set("*", ESP_LOG_INFO);

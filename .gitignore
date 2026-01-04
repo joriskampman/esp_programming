@@ -1,5 +1,6 @@
 #---> esp-idf file
 # build and configuration
+.cache/
 build/
 sdkconfig
 sdkconfig.old
