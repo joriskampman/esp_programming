@@ -1,0 +1,19 @@
+{
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ],
+  "idf.customExtraVars": {
+    "\"ESPTOOLPY_PORT\"": "\"/dev/ttyACM0\"",
+    "\"ESPTOOL_BAUD\"": "460800",
+    "IDF_TARGET": "esp32s3"
+  },
+  "clangd.path": "/home/joris/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=${workspaceFolder}/build"
+  ],
+  "idf.flashType": "JTAG",
+  "idf.port": "/dev/ttyACM0",
+  "C_Cpp.intelliSenseEngine": "disabled"
+}
