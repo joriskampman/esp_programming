@@ -1,5 +1,5 @@
 /*
-This script grabs QVGA (320x240) frames from an ov5640 camera connected to the ESP32-S3 test board
+This script grabs QVGA (320x240) frames from an ovXXXX camera connected to the ESP32-S3 test board
 
 It print outs - part of - the pixel values as a sanity check. Further processing will be added in
 follow-up projects
@@ -26,6 +26,7 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #include "math.h"
 #include "esp_psram.h"
 #include <stdbool.h>
+#include "constants.h"
 
 
 // DEFINE PINOUT
@@ -49,8 +50,13 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #define PIXFMT PIXFORMAT_GRAYSCALE
 
 // name in the ESP_LOG<X> to identify where it comes from
-static const char *TAG = "camera_stream";
-static const bool enable_performance_logging = false;
+static const char* TAG = "camera_stream";
+static const char* MEM_TAG = "camera stream - memory";
+static const float MEM_STAT_DISP_INTV_MS = 10.0f*b2m_f;
+static const bool ENABLE_PERF_LOG = true;
+static const bool ENABLE_RUNTIME_LOG = true;
+static const float FRAME_RATE_HZ = 5.0f;
+static const float DATA_RATE_HZ = 10.0f*M2b_f;
 
 // Global camera buffer
 camera_fb_t *fb = NULL;
@@ -77,7 +83,7 @@ esp_err_t init_camera(void) {
     .pin_href = CAM_HREF,
     .pin_pclk = CAM_PCLK,
 
-    .xclk_freq_hz = 24000000,
+    .xclk_freq_hz = DATA_RATE_HZ,
     .ledc_channel = LEDC_CHANNEL_0,
     .ledc_timer = LEDC_TIMER_0,
     .pixel_format = PIXFMT, // options: PIXFORMAT_[RGB565 | YUV422 | GRAYSCALE]
@@ -104,7 +110,7 @@ esp_err_t init_camera(void) {
   }
 
   // OV3660 specific settings
-  // reset to default values first
+  // reset to default values firstnu
   p_sens->set_vflip(p_sens, 0);
   p_sens->set_hmirror(p_sens, 0);
 
@@ -146,42 +152,118 @@ void print_frame_data(const uint8_t *p_buf, size_t len) {
   }
 
   // todo: calculate some stats, for now print something
-  printf(".. to implement: some statistics!");
 
   // print a set of pixel values
-  printf("  sample pixels:\n");
   for (uint8_t ipix = 0; ipix < 10; ipix++) {
     printf("  %3.0f ", (float)p_buf[ipix]);
   }
   printf("\n");
 }  // print_frame_data()
 
+typedef struct {
+  //
+  float total_elapsed_time_ms;  // the total elapsed time sine start
+  float delta_time_ms;  // the delta time after last update
+
+  // RAM
+  float internal_total_free_mb;
+  float internal_largest_free_mb;
+  // PSRAM
+  float psram_largest_free_mb;
+  float psram_total_free_mb;
+
+  // deltas (changes between frames)
+  float delta_internal_total_free_mb;
+  float delta_internal_largest_free_mb;
+  float delta_psram_total_free_mb;
+  float delta_psram_largest_free_mb;
+
+} mem_state_t;
+
+void print_memory_stats(mem_state_t* mem_state) {
+  // create 1 big string that is the log
+
+  // print the memory stats
+  char log_buffer[512];  // single log buffer of 512 characters
+  snprintf(log_buffer, sizeof(log_buffer),
+    "\n--------       Monitoring memory and it's changes       ----------------\n" \
+    "internal RAM\n" \
+    "  total free: %0.1fMB (%+.0fkB change)" \
+    "  largest free block: %0.1fMB (%+.0fkB change)" \
+    "\n" \
+    "PSRAM\n" \
+    "  total free: %0.1fMB (%+.0fkB change)" \
+    "  largest free block: %0.1fMB (%+.0fkB change)\n",
+    mem_state->internal_total_free_mb,
+    mem_state->delta_internal_total_free_mb*1000.f,
+    mem_state->internal_largest_free_mb,
+    mem_state->delta_internal_largest_free_mb*1000.f,
+    mem_state->psram_total_free_mb,
+    mem_state->delta_psram_total_free_mb*1000.0f,
+    mem_state->psram_largest_free_mb,
+    mem_state->delta_psram_largest_free_mb*1000.0f);
+
+  // ESP_LOGD(MEM_TAG, "Monitoring memory and stack ...");
+  printf(ANSI_DEBUG "%s" ANSI_RESET, log_buffer);
+
+} // print_memory_stats
+
+void update_mem_stats(mem_state_t* mem_state) {
+  /*
+  update the memory status numbers
+  */
+  float itfm = mem_state->internal_total_free_mb;
+  float ilfm = mem_state->internal_largest_free_mb;
+  float ptfm = mem_state->psram_total_free_mb;
+  float plfm = mem_state->psram_largest_free_mb;
+
+  // delay the task -> give back to scheduler
+  mem_state->internal_total_free_mb =
+  (float)heap_caps_get_free_size(MALLOC_CAP_INTERNAL)/1000000.0f;
+  mem_state->internal_largest_free_mb =
+  (float)heap_caps_get_free_size(MALLOC_CAP_INTERNAL)/1000000.0f;
+
+  mem_state->psram_total_free_mb =
+  (float)heap_caps_get_free_size(MALLOC_CAP_SPIRAM)/1000000.0f;
+  mem_state->psram_largest_free_mb =
+  (float)heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM)/1000000.0f;
+
+  // fill in the deltas
+  mem_state->delta_internal_total_free_mb = mem_state->internal_total_free_mb - itfm;
+  mem_state->delta_internal_largest_free_mb = mem_state->internal_largest_free_mb - ilfm;
+  mem_state->delta_psram_total_free_mb = mem_state->psram_total_free_mb - ptfm;
+  mem_state->delta_psram_largest_free_mb = mem_state->psram_largest_free_mb - plfm;
+}  // update_memory_stats
+
+
+void mem_monitor_task(void* pvParameters) {
+  // cast void pointer to mem_state_t
+  mem_state_t* mem_state = (mem_state_t*)pvParameters;
+
+  const TickType_t xDelay = pdMS_TO_TICKS(MEM_STAT_DISP_INTV_MS);  // every 10 seconds a memory check
+
+  while (1) {
+    // get the previous values in helper variables
+    vTaskDelay(xDelay);
+
+    update_mem_stats(mem_state);
+
+    // print stats
+    print_memory_stats(mem_state);
+  } // while (1)
+} // get_largest_mem_block_mb
+
+
+
 void camera_task(void *pvParameters) {
   TickType_t xLastWakeTime = xTaskGetTickCount();
-  const TickType_t xFrequency = pdMS_TO_TICKS(200);  // 2 Hz = 200 ms
+  const TickType_t REFRESH_INTERVAL_TICK = pdMS_TO_TICKS(1000.0f/FRAME_RATE_HZ);  // 2 Hz = 200 ms
 
   ESP_LOGI(TAG, "Camera task started");
 
   while (1) {
     // capture a frame
     camera_fb_t *fb = esp_camera_fb_get();
-
-    if (enable_performance_logging) {
-      static int frame_count = 0;
-      if (++frame_count%10 == 0) {
-        // 1. log heap info
-        heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
-
-        // 2. LOG THIS TASKS' stack high water mark (in bytes)
-        UBaseType_t stack_high_water = uxTaskGetStackHighWaterMark(NULL);
-        ESP_LOGI(TAG, "Task stack high water mark: %.1fkB (max 4kB)", (float)stack_high_water/1000.0f);
-
-        // 3. log psram-specific heap
-        size_t free_psram = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
-        ESP_LOGI(TAG, "Free PSRAM: %0.1fMB", (float)free_psram/1000000.0f);
-      }
-    }
-
 
     if (!fb) {
       ESP_LOGE(TAG, "Camera capture failed");
@@ -195,11 +277,12 @@ void camera_task(void *pvParameters) {
 
     }
     // wait for 5 Hz (200 ms)
-    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    vTaskDelayUntil(&xLastWakeTime, REFRESH_INTERVAL_TICK);
   }
 }  // camera_task()
 
-void stats_task(void *pvParams) {
+
+void runtime_stats_task(void *pvParams) {
   const TickType_t xDelay = pdMS_TO_TICKS(30000);
   char statsBuffer[512]; // preallocate buffer
 
@@ -216,6 +299,34 @@ void stats_task(void *pvParams) {
 
   }
 }
+
+void perf_mon_task(void *pvParameters) {
+  // monitor task or all parameters to monitor during running
+  mem_state_t* mem_state = (mem_state_t*) pvParameters;
+  const TickType_t xDelay = pdMS_TO_TICKS(MEM_STAT_DISP_INTV_MS);
+
+  static char statsBuffer[512]; // preallocate buffer
+  UBaseType_t stack_high_water;
+  while (1) {
+    // delay
+
+    vTaskDelay(xDelay);
+
+    // update memory state in-place
+    update_mem_stats(mem_state);
+    print_memory_stats(mem_state);
+
+    // high water mark
+    stack_high_water = uxTaskGetStackHighWaterMark(NULL);
+    printf(ANSI_DEBUG "Task stack high water mark = %d of 4096 bytes\n" ANSI_RESET, stack_high_water);
+
+    if (ENABLE_RUNTIME_LOG) {
+      vTaskGetRunTimeStats(statsBuffer);
+
+      printf(ANSI_SPECIAL "CPU statistics:\n%s\n" ANSI_RESET, statsBuffer);
+    }
+  }
+}  // perf_mon_task
 
 void app_main(void) {
   // initialize NVS (non-volatile .. something?)
@@ -236,9 +347,13 @@ void app_main(void) {
     ESP_LOGI(TAG, "PSRAM initialized successfully");
   }
 
-  if (enable_performance_logging) {
-    xTaskCreate(stats_task, "stats_task", 2048, NULL, 1, NULL);
+  if (ENABLE_PERF_LOG) {
+    mem_state_t mem_state = {0};
+    ESP_LOGI(TAG, "Starting memory monitoring task");
+    xTaskCreate(perf_mon_task, "perf_mon_task", 4096, &mem_state, 1, NULL);  // lowest prio task
+    // xTaskCreate(runtime_stats_task, "runtime_stats_task", 2048, NULL, 1, NULL);
   }
+
 
   // set console baud rate for better serial output
   esp_log_level_set("*", ESP_LOG_INFO);
@@ -246,6 +361,7 @@ void app_main(void) {
   ESP_LOGI(TAG, "Starting camera application");
 
   // initialize camera
+  ESP_LOGI(TAG, "Initialize camera");
   ret = init_camera();
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to initialize camera");
@@ -253,6 +369,7 @@ void app_main(void) {
   }
 
   // create camera task with sufficient stack size
+  ESP_LOGI(TAG, "starting camera_task()");
   xTaskCreate(camera_task, "camera_task", 4096, NULL, 5, NULL);
 
   ESP_LOGI(TAG, "Camera stream task started at 5 Hz");

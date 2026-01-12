@@ -15,5 +15,6 @@
   ],
   "idf.flashType": "JTAG",
   "idf.port": "/dev/ttyACM0",
-  "C_Cpp.intelliSenseEngine": "disabled"
+  "C_Cpp.intelliSenseEngine": "disabled",
+  "idf.currentSetup": "/home/joris/esp/v5.5.1/esp-idf"
 }
