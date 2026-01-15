@@ -1,4 +1,7 @@
 ## IDF Component Manager Manifest File
+version: "0.2.0"
+description: "Depth control via camera-based detection"
+url: "https://github.com/joriskampman/esp_programming"
 dependencies:
   ## Required IDF version
   idf:
