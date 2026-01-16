@@ -6,10 +6,8 @@
 #include "freertos/task.h"
 #include "portmacro.h"
 #include "monitoring.h"
-#include "constants.h"
+#include "common.h"
 
-static const float MEM_STAT_DISP_INTV_MS = 10.0f*b2m_f;
-static const bool ENABLE_RUNTIME_LOG = true;
 
 void print_memory_stats(mem_state_t* mem_state) {
   // create 1 big string that is the log
@@ -66,22 +64,22 @@ void update_mem_stats(mem_state_t* mem_state) {
   mem_state->delta_psram_largest_free_mb = mem_state->psram_largest_free_mb - plfm;
 }  // update_mem_stats
 
-void mem_monitor_task(void* pvParameters) {
-  // cast void pointer to mem_state_t
-  mem_state_t* mem_state = (mem_state_t*)pvParameters;
+// void mem_monitor_task(void* pvParameters) {
+//   // cast void pointer to mem_state_t
+//   mem_state_t* mem_state = (mem_state_t*)pvParameters;
 
-  const TickType_t xDelay = pdMS_TO_TICKS(MEM_STAT_DISP_INTV_MS);  // every 10 seconds a memory check
+//   const TickType_t xDelay = pdMS_TO_TICKS(get_mon_interval_ms());  // every 10 seconds a memory check
 
-  while (1) {
-    // get the previous values in helper variables
-    vTaskDelay(xDelay);
+//   while (1) {
+//     // get the previous values in helper variables
+//     vTaskDelay(xDelay);
 
-    update_mem_stats(mem_state);
+//     update_mem_stats(mem_state);
 
-    // print stats
-    print_memory_stats(mem_state);
-  } // while (1)
-} // mem_monitor_task
+//     // print stats
+//     print_memory_stats(mem_state);
+//   } // while (1)
+// } // mem_monitor_task
 
 void update_frame_stats(frame_stats_t* stats, uint32_t current_count, uint64_t timestamp_us) {
   if (stats->last_frame_count == 0) {
@@ -126,7 +124,7 @@ void print_frame_stats(frame_stats_t* fstats) {
 void perf_mon_task(void *pvParameters) {
   // monitor task or all parameters to monitor during running
   perf_mon_t* perf_mon = (perf_mon_t*) pvParameters;
-  const TickType_t xDelay = pdMS_TO_TICKS(MEM_STAT_DISP_INTV_MS);
+  const TickType_t xDelay = pdMS_TO_TICKS(get_mon_interval_ms());
 
   static char statsBuffer[512]; // preallocate buffer
   UBaseType_t stack_high_water;
@@ -134,14 +132,9 @@ void perf_mon_task(void *pvParameters) {
   while (1) {
     vTaskDelay(xDelay);
 
-    // update memory state in-place
-    update_mem_stats(&perf_mon->mem_state);
-    print_memory_stats(&perf_mon->mem_state);
-
     // process queued frame events
     frame_event_t event;
     uint32_t events_processed = 0;
-    printf(ANSI_DEBUG "Emptying queue .." ANSI_RESET);
     while (perf_mon->frame_event_queue != NULL &&
         xQueueReceive(perf_mon->frame_event_queue, &event, 0) == pdTRUE) {
 
@@ -160,19 +153,27 @@ void perf_mon_task(void *pvParameters) {
     }
 
     // after the update -> print info
-    printf(ANSI_DEBUG "%" PRIu32 " events were in the queue\n" ANSI_RESET,
-            events_processed);
+    printf(ANSI_DEBUG "%" PRIu32 " events were in the queue (%" PRIu32" max)\n" ANSI_RESET,
+            events_processed, get_queue_depth());
     print_frame_stats(&perf_mon->frame_stats);
 
 
-    // high water mark
-    stack_high_water = uxTaskGetStackHighWaterMark(NULL);
-    printf(ANSI_DEBUG "Task stack high water mark = %d of 4096 bytes\n" ANSI_RESET, stack_high_water);
 
-    if (ENABLE_RUNTIME_LOG) {
+    if (get_enable_runtime_mon()) {
       vTaskGetRunTimeStats(statsBuffer);
 
       printf(ANSI_SPECIAL "CPU statistics:\n%s\n" ANSI_RESET, statsBuffer);
     }
+
+        // update memory state in-place
+    if (get_enable_mem_check()) {
+      update_mem_stats(&perf_mon->mem_state);
+      print_memory_stats(&perf_mon->mem_state);
+      // high water mark
+      stack_high_water = uxTaskGetStackHighWaterMark(NULL);
+      printf(ANSI_DEBUG "Task stack high water mark = %d of 4096 bytes\n" ANSI_RESET, stack_high_water);
+    }
+
+
   }
 }  // perf_mon_task

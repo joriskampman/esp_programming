@@ -7,13 +7,19 @@
 #include "esp_log.h"
 #include "esp_camera.h"
 #include "vision_processing.h"
-#include "constants.h"
+#include "common.h"
 #include "monitoring.h"
 #include <stdint.h>
 
 static const char* CAM_TAG = "camera";
-static const float FRAME_RATE_HZ = 5.0f;
-static const float DATA_RATE_HZ = 10.0f*M2b_f;
+
+float get_xclk_freq_hz_f() {
+  return DATA_RATE_HZ;
+}
+
+float get_fb_count() {
+  return FB_COUNT;
+}
 
 // function to initialize camera --> init_camera()
 esp_err_t init_camera(void) {
@@ -37,13 +43,13 @@ esp_err_t init_camera(void) {
     .pin_href = CAM_HREF,
     .pin_pclk = CAM_PCLK,
 
-    .xclk_freq_hz = DATA_RATE_HZ,
+    .xclk_freq_hz = get_xclk_freq_hz_f(),
     .ledc_channel = LEDC_CHANNEL_0,
     .ledc_timer = LEDC_TIMER_0,
     .pixel_format = PIXFMT, // options: PIXFORMAT_[RGB565 | YUV422 | GRAYSCALE]
     .frame_size = FRAMESIZE,  // 320x240, fits on LED screen
     .jpeg_quality = 12,  // 1-63, lower is better quality, not used in grayscale
-    .fb_count = 2,  //use 2 framebuffers, 1 for processing, 1 for filling at the same time
+    .fb_count = get_fb_count(),  //use 2 framebuffers, 1 for processing, 1 for filling at the same time
     .fb_location = CAMERA_FB_IN_PSRAM, // large framebuffers may only fit in PSRAM, alt: ..._DRAM
     .grab_mode = CAMERA_GRAB_LATEST, // alt: CAMERA_GRAB_WHEN_EMPTY (waits if none available)
 
@@ -107,7 +113,7 @@ void camera_task(void *pvParameters) {
   static uint32_t frame_counter = 0;
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
-  const TickType_t REFRESH_INTERVAL_TICK = pdMS_TO_TICKS(1000.0f/FRAME_RATE_HZ);  // 2 Hz = 200 ms
+  const TickType_t REFRESH_INTERVAL_TICK = pdMS_TO_TICKS(b2m_f/get_frame_rate_hz_f());  // 2 Hz = 200 ms
 
   ESP_LOGI(CAM_TAG, "Camera task started");
 

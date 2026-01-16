@@ -55,7 +55,8 @@ void update_frame_stats(frame_stats_t* frame_stats, uint32_t current_count, uint
 void print_frame_stats(frame_stats_t* fstats);
 void update_mem_stats(mem_state_t* mem_state);
 void print_memory_stats(mem_state_t* mem_state);
-void mem_monitor_task(void* pvParameters);
+// void mem_monitor_task(void* pvParameters);
 void perf_mon_task(void* pvParameters);
+float get_mon_interval_ms();
 
 #endif  // MONITORING_H

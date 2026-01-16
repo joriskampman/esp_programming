@@ -7,6 +7,12 @@ defines some constants that are globally valid
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include <stdbool.h>
+#include "portmacro.h"  // IWYU pragma: keep
+
+// user defines
+
 #define BYTES_PER_KB  1024UL
 #define BYTES_PER_MB (1024UL*1024UL)
 #define BYTES_PER_GB (1024UL*1024UL*1024UL)
@@ -88,6 +94,29 @@ extern "C" {
 #define ANSI_DATA      "\033[1;34m"
 #define ANSI_SPECIAL   "\033[1;35m"
 #define ANSI_WARNING   "\033[0;33m"
+
+// getters and setters
+float get_frame_rate_hz_f();
+void set_frame_rate_hz_f(float);
+
+bool get_enable_perf_mon();
+
+bool get_enable_runtime_mon();
+void set_enable_runtime_mon(bool);
+
+bool get_enable_mem_check();
+void set_enable_mem_check(bool);
+bool get_enable_frame_dropping_check();
+void set_enable_frame_dropping_check(bool);
+
+void set_queue_depth(uint32_t);
+uint32_t get_queue_depth();
+
+float get_mon_interval_ms();
+void set_mon_interval_ms(float);
+
+void common_init(void);
+
 #ifdef __cplusplus
 }
 #endif

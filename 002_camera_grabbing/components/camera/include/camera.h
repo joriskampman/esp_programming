@@ -3,6 +3,7 @@
 
 #include "esp_err.h"
 #include "freertos/idf_additions.h"
+#include "common.h"
 
 // DEFINE PINOUT FOR CAMERA
 // from: ../pics/pinout.avif
@@ -30,6 +31,12 @@ typedef struct {
 } camera_tasks_params_t;
 
 // declare functions
+static const float DATA_RATE_HZ = 10.0f*M2b_f;
+float get_xclk_freq_hz();
+
+static const uint32_t FB_COUNT = 2;
+float get_fb_count();
+
 esp_err_t init_camera(void);
 
 void camera_task(void* pvParameters);

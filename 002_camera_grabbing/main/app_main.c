@@ -15,7 +15,6 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include "freertos/idf_additions.h"
-// #include "esp_camera.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "portmacro.h"  // IWYU pragma: keep  (contains portCONFIGURE_TIMER_FOR_RUN_TIME_STATS etc)
@@ -23,16 +22,16 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #include <stdbool.h>
 #include "monitoring.h"
 #include "camera.h"
+#include "common.h"
 
-
-// name in the ESP_LOG<X> to identify where it comes from
 static const char* TAG = "main";
-static const bool ENABLE_PERF_LOG = true;
 
 // creates a queueu (analog: post office with 10 mailboxes)
 QueueHandle_t frame_event_queue = NULL;  // initialize to NULL (can't be an initializer)
 
 void app_main(void) {
+  common_init();
+
   // initialize NVS (non-volatile .. something?)
   esp_err_t ret = ESP_ERROR_CHECK_WITHOUT_ABORT(nvs_flash_init());
 
@@ -53,7 +52,7 @@ void app_main(void) {
   }
 
   // create Queue, if fail --> return
-  frame_event_queue = xQueueCreate(300, sizeof(frame_event_t));
+  frame_event_queue = xQueueCreate(get_queue_depth(), sizeof(frame_event_t));
   if (frame_event_queue == NULL) {
     ESP_LOGE(TAG, "Failed to create frame event queue.");
     return;
@@ -65,7 +64,7 @@ void app_main(void) {
   perf_mon.frame_stats.fps_expected = 5.0f;  // TODO: parameterize
 
   // memory monitoring
-  if (ENABLE_PERF_LOG) {
+  if (get_enable_perf_mon()) {
     ESP_LOGI(TAG, "Starting memory monitoring task");
     xTaskCreate(perf_mon_task, "perf_mon_task", 4096, &perf_mon, 1, NULL);  // task has lower prio
   }
