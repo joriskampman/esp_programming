@@ -15,7 +15,7 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include "freertos/idf_additions.h"
-#include "esp_camera.h"
+// #include "esp_camera.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "portmacro.h"  // IWYU pragma: keep  (contains portCONFIGURE_TIMER_FOR_RUN_TIME_STATS etc)
@@ -52,25 +52,23 @@ void app_main(void) {
     ESP_LOGI(TAG, "PSRAM initialized successfully");
   }
 
-  // frame event
+  // create Queue, if fail --> return
   frame_event_queue = xQueueCreate(300, sizeof(frame_event_t));
   if (frame_event_queue == NULL) {
     ESP_LOGE(TAG, "Failed to create frame event queue.");
     return;
   }
-  // padd to tasks
-  camera_tasks_params_t params = {
-    .frame_event_queue = frame_event_queue,
 
-  }
+  // initialize perf_mon
+  static perf_mon_t perf_mon = {0};
+  perf_mon.frame_event_queue = frame_event_queue;
+  perf_mon.frame_stats.fps_expected = 5.0f;  // TODO: parameterize
 
   // memory monitoring
   if (ENABLE_PERF_LOG) {
-    static mem_state_t mem_state = {0};  // static makes it persistent
     ESP_LOGI(TAG, "Starting memory monitoring task");
-    xTaskCreate(perf_mon_task, "perf_mon_task", 4096, &mem_state, 3, NULL);  // task has lower prio
+    xTaskCreate(perf_mon_task, "perf_mon_task", 4096, &perf_mon, 1, NULL);  // task has lower prio
   }
-
 
   // set console baud rate for better serial output
   esp_log_level_set("main", ESP_LOG_INFO);
@@ -86,9 +84,13 @@ void app_main(void) {
   }
 
   // create camera task with sufficient stack size
+  camera_tasks_params_t camera_params = {
+    .frame_event_queue = frame_event_queue,
+  };
+
   ESP_LOGI(TAG, "starting camera_task()");
   TaskHandle_t camera_task_handle;
-  if (xTaskCreate(camera_task, "camera_task", 4096, NULL, 5, &camera_task_handle) != pdPASS) {
+  if (xTaskCreate(camera_task, "camera_task", 4096, &camera_params, 5, &camera_task_handle) != pdPASS) {
     ESP_LOGE(TAG, "Failed to create camera task");
     return;
   }

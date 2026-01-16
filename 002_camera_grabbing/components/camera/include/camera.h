@@ -2,6 +2,7 @@
 #define CAMERA_H
 
 #include "esp_err.h"
+#include "freertos/idf_additions.h"
 
 // DEFINE PINOUT FOR CAMERA
 // from: ../pics/pinout.avif
@@ -22,6 +23,11 @@
 
 #define FRAMESIZE FRAMESIZE_QVGA
 #define PIXFMT PIXFORMAT_GRAYSCALE
+
+// typedefs
+typedef struct {
+  QueueHandle_t frame_event_queue;
+} camera_tasks_params_t;
 
 // declare functions
 esp_err_t init_camera(void);

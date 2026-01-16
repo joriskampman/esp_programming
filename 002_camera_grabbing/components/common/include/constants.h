@@ -84,9 +84,10 @@ extern "C" {
 #define ANSI_MAGENTA_B  "\033[1;35m"
 #define ANSI_ORANGE     "\033[38;5;208m"
 
-#define ANSI_DEBUG      "\033[1;36m"
+#define ANSI_DEBUG     "\033[1;36m"
 #define ANSI_DATA      "\033[1;34m"
 #define ANSI_SPECIAL   "\033[1;35m"
+#define ANSI_WARNING   "\033[0;33m"
 #ifdef __cplusplus
 }
 #endif

@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"  // IWYU pragma: keep
 #include "esp_heap_caps.h"
+#include "freertos/idf_additions.h"
+#include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include "portmacro.h"
 #include "monitoring.h"
@@ -24,13 +26,13 @@ void print_memory_stats(mem_state_t* mem_state) {
     "  total free: %0.1fMB (%+.0fkB change)" \
     "  largest free block: %0.1fMB (%+.0fkB change)\n",
     mem_state->internal_total_free_mb,
-    mem_state->delta_internal_total_free_mb*1000.f,
+    mem_state->delta_internal_total_free_mb*M2k_f,
     mem_state->internal_largest_free_mb,
-    mem_state->delta_internal_largest_free_mb*1000.f,
+    mem_state->delta_internal_largest_free_mb*M2k_f,
     mem_state->psram_total_free_mb,
-    mem_state->delta_psram_total_free_mb*1000.0f,
+    mem_state->delta_psram_total_free_mb*M2k_f,
     mem_state->psram_largest_free_mb,
-    mem_state->delta_psram_largest_free_mb*1000.0f);
+    mem_state->delta_psram_largest_free_mb*M2k_f);
 
   // ESP_LOGD(MEM_TAG, "Monitoring memory and stack ...");
   printf(ANSI_DEBUG "%s" ANSI_RESET, log_buffer);
@@ -81,11 +83,12 @@ void mem_monitor_task(void* pvParameters) {
   } // while (1)
 } // mem_monitor_task
 
-void update_frame_stats(frame_stats_t* stats, uint32_t current_count, uint64_t timestamp) {
+void update_frame_stats(frame_stats_t* stats, uint32_t current_count, uint64_t timestamp_us) {
   if (stats->last_frame_count == 0) {
     // first frame
     stats->last_frame_count = current_count;
-    stats->last_timestamp = timestamp;
+    stats->last_timestamp = timestamp_us;
+    stats->total_frames = current_count;
     return;
   }
 
@@ -93,7 +96,7 @@ void update_frame_stats(frame_stats_t* stats, uint32_t current_count, uint64_t t
   uint32_t expected = stats->last_frame_count + 1;
   if (current_count > expected) {
     stats->dropped_frames += (current_count - expected);
-    printf(ANSI_DEBUG "Frame drop detected! Expected %u, got %u\n" ANSI_RESET,
+    printf(ANSI_DEBUG "Frame drop detected! Expected %" PRIu32 ", got %" PRIu32 "\n" ANSI_RESET,
            expected, current_count);
   }  // more than expected -> frames are dropped
 
@@ -102,43 +105,65 @@ void update_frame_stats(frame_stats_t* stats, uint32_t current_count, uint64_t t
   stats->last_frame_count = current_count;
 
   // calculate actual fps
-  if (timestamp > stats->last_timestamp) {
-    float delta_s = (timestamp - stats->last_timestamp)*u2b_f;
+  if (timestamp_us > stats->last_timestamp) {
+    float delta_s = (timestamp_us - stats->last_timestamp)*u2b_f;
     if (delta_s > 0) {
       stats->fps_actual = (1.0f/delta_s);
     }
   }
-  stats->last_timestamp = timestamp;
+  stats->last_timestamp = timestamp_us;
 }  // update_frame_stats()
 
-void print_frame_stats(const frame_stats_t* stats) {
-  printf(ANSI_DEBUG "Frame stats: Total=%u, Dropped=%u (%.1f%%), "
+void print_frame_stats(frame_stats_t* fstats) {
+  printf(ANSI_DEBUG "Frame fstats: Total=%" PRIu32 ", Dropped=%" PRIu32 " (%.1f%%), "
         "fps=%.1f/%.1f (actual/expected)\n" ANSI_RESET,
-        stats->total_frames, stats->dropped_frames,
-        (stats->total_frames > 0) ?
-        (100.0f*stats->dropped_frames/stats->total_frames) : 0.0f,
-        stats->fps_actual, stats->fps_expected);
+        fstats->total_frames, fstats->dropped_frames,
+        (fstats->total_frames > 0) ?
+        (100.0f*fstats->dropped_frames/fstats->total_frames) : 0.0f,
+        fstats->fps_actual, fstats->fps_expected);
 }
 
 void perf_mon_task(void *pvParameters) {
   // monitor task or all parameters to monitor during running
-  mem_state_t* mem_state = (mem_state_t*) pvParameters;
+  perf_mon_t* perf_mon = (perf_mon_t*) pvParameters;
   const TickType_t xDelay = pdMS_TO_TICKS(MEM_STAT_DISP_INTV_MS);
 
-  // initialize frame stats
-  mem_state->camera_stats.fps_expected = 5.0f;
   static char statsBuffer[512]; // preallocate buffer
   UBaseType_t stack_high_water;
 
   while (1) {
-    // delay
-
     vTaskDelay(xDelay);
 
     // update memory state in-place
-    update_mem_stats(mem_state);
-    print_memory_stats(mem_state);
-    print_frame_stats(&mem_state->camera_stats);
+    update_mem_stats(&perf_mon->mem_state);
+    print_memory_stats(&perf_mon->mem_state);
+
+    // process queued frame events
+    frame_event_t event;
+    uint32_t events_processed = 0;
+    printf(ANSI_DEBUG "Emptying queue .." ANSI_RESET);
+    while (perf_mon->frame_event_queue != NULL &&
+        xQueueReceive(perf_mon->frame_event_queue, &event, 0) == pdTRUE) {
+
+      events_processed++;
+
+      // update frame statistics with actual camera data
+      update_frame_stats(&perf_mon->frame_stats,
+                      event.frame_count,
+                      event.timestamp);
+      // printf(ANSI_DEBUG "Received frame %" PRIu32 "\n" ANSI_RESET,
+      //       event.frame_count);
+    }
+
+    if (events_processed == 0) {
+      printf(ANSI_WARNING "No frame events received in this interval\n" ANSI_RESET);
+    }
+
+    // after the update -> print info
+    printf(ANSI_DEBUG "%" PRIu32 " events were in the queue\n" ANSI_RESET,
+            events_processed);
+    print_frame_stats(&perf_mon->frame_stats);
+
 
     // high water mark
     stack_high_water = uxTaskGetStackHighWaterMark(NULL);

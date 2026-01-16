@@ -1,4 +1,5 @@
 #include "freertos/FreeRTOS.h"  // IWYU pragma: keep
+#include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include "camera.h"
@@ -8,6 +9,7 @@
 #include "vision_processing.h"
 #include "constants.h"
 #include "monitoring.h"
+#include <stdint.h>
 
 static const char* CAM_TAG = "camera";
 static const float FRAME_RATE_HZ = 5.0f;
@@ -98,8 +100,10 @@ esp_err_t init_camera(void) {
 
 
 void camera_task(void *pvParameters) {
-  mem_state_t* mem_state = (mem_state_t*)pvParameters;
-  QueueHandle_t queue = mem_state->frame_event_queue;
+  // get the camera task parameters
+  camera_tasks_params_t* params = (camera_tasks_params_t*)pvParameters;
+
+  QueueHandle_t queue = params->frame_event_queue;
   static uint32_t frame_counter = 0;
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -114,6 +118,23 @@ void camera_task(void *pvParameters) {
     if (!fb) {
       ESP_LOGE(CAM_TAG, "Camera capture failed");
     } else {
+      // create frame event for monitoring
+      uint64_t timestamp_us = (uint64_t)fb->timestamp.tv_sec*1000000UL
+                            + (uint64_t)fb->timestamp.tv_usec;
+
+      frame_event_t event = {
+        .frame_count = frame_counter++,
+        .timestamp = timestamp_us,
+        .frame_size = fb->len
+      };
+
+      // send the frame actually to the queue
+      if (queue != NULL) {
+        if (xQueueSend(queue, &event, 0) != pdTRUE) {
+          ESP_LOGW(CAM_TAG, "Queue full, dropping frame %lu", frame_counter-1);
+        }
+      }
+
       // print frame statistics
       print_frame_data(fb->buf, fb->len);
 

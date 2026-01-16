@@ -1,5 +1,5 @@
-#ifndef PERFORMANCE_H
-#define PERFORMANCE_H
+#ifndef MONITORING_H
+#define MONITORING_H
 
 #include "freertos/idf_additions.h"
 #include <stdint.h>
@@ -17,12 +17,12 @@ typedef struct {
 typedef struct {
   uint32_t total_frames;
   uint32_t dropped_frames;
+  uint32_t queue_overflows;
   uint32_t last_frame_count;
-  uint32_t last_timestamp;
+  uint64_t last_timestamp;  // note the type
   float fps_actual;
   float fps_expected;
 } frame_stats_t;
-
 
 typedef struct {
   //
@@ -42,22 +42,20 @@ typedef struct {
   float delta_psram_total_free_mb;
   float delta_psram_largest_free_mb;
 
-  QueueHandle_t frame_event_queue;
-
-  struct {
-    uint32_t total_frames;
-    uint32_t dropped_frames;
-    uint32_t queue_overflows;
-    float fps_actual;
-    float fps_expected;
-  } camera_stats;
-
 } mem_state_t;
 
+typedef struct {
+  mem_state_t mem_state;
+  frame_stats_t frame_stats;
+  QueueHandle_t frame_event_queue;
+} perf_mon_t;
+
 // function declarations/prototypes
+void update_frame_stats(frame_stats_t* frame_stats, uint32_t current_count, uint64_t timestamp);
+void print_frame_stats(frame_stats_t* fstats);
 void update_mem_stats(mem_state_t* mem_state);
 void print_memory_stats(mem_state_t* mem_state);
 void mem_monitor_task(void* pvParameters);
 void perf_mon_task(void* pvParameters);
 
-#endif  // PERFORMANCE_H
+#endif  // MONITORING_H
