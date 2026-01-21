@@ -155,6 +155,9 @@ void camera_task(void *pvParameters) {
     if (!fb) {
       ESP_LOGE(CAM_TAG, "Camera capture failed");
     } else {
+      // print frame statistics
+      print_frame_data(fb->buf, fb->len);
+
       // create frame event for monitoring
       uint64_t timestamp_us = (uint64_t)fb->timestamp.tv_sec*1000000UL
                             + (uint64_t)fb->timestamp.tv_usec;
@@ -166,16 +169,26 @@ void camera_task(void *pvParameters) {
       };
 
       // place the frame in the buffer pool if there is a free_sem available
-      buffer_pool_get_empty()
-      // send the frame actually to the queue
-      if (queue != NULL) {
-        if (xQueueSend(queue, &event, 0) != pdTRUE) {
-          ESP_LOGW(CAM_TAG, "Queue full, dropping frame %lu", frame_counter-1);
-        }
-      }
+      camera_fb_t* fb_empty = buffer_pool_get_empty();
 
-      // print frame statistics
-      print_frame_data(fb->buf, fb->len);
+      // copy the fb to the fb_empty
+      memcpy(fb_empty->buf, fb->buf, fb->len);
+      // now the meta data
+      fb_empty->len = fb->len;
+      fb_empty->width = fb->width;
+      fb_empty->height = fb->height;
+      fb_empty->format = fb->format;
+      fb_empty->timestamp = fb->timestamp;
+
+      // update the write idx and giving the free_sem bacck
+      buffer_pool_signal_filled();
+
+      // send the frame actually to the queue
+      // if (queue != NULL) {
+      //   if (xQueueSend(queue, &event, 0) != pdTRUE) {
+      //     ESP_LOGW(CAM_TAG, "Queue full, dropping frame %lu", frame_counter-1);
+      //   }
+      // }
 
       // return the frame buffer
       esp_camera_fb_return(fb);

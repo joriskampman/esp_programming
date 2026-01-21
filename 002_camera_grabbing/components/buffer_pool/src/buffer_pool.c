@@ -4,8 +4,8 @@ buffer_pool.c
 contains init and deinit
 */
 #include "buffer_pool.h"
-#include "freertos/idf_additions.h"
-#include "portmacro.h"
+#include "freertos/FreeRTOS.h" // IWYU pragma: keep
+#include "freertos/semphr.h"
 #include "esp_log.h"
 #include "sensor.h"
 #include "camera.h"
@@ -17,7 +17,8 @@ buffer_pool_t* get_fb_pool(void) {
   return fb_pool;
 }
 
-void buffer_pool_deinit(buffer_pool_t* pool) {
+void buffer_pool_deinit(void) {
+  buffer_pool_t* pool = get_fb_pool();
   if (!pool) {
     return;
   }
@@ -86,38 +87,43 @@ void buffer_pool_init(void) {
   fb_pool->read_idx = 0;
 
 error:
-  buffer_pool_deinit(fb_pool);
+  buffer_pool_deinit();
 }  // buffer_pool_init
 
 // -----------------------------------------------------------------------------------------
 // helper functions
 // -----------------------------------------------------------------------------------------
 // producter: get empty file buffer
-camera_fb_t* buffer_pool_get_empty(buffer_pool_t* pool) {
+camera_fb_t* buffer_pool_get_empty(void) {
+  buffer_pool_t* pool = get_fb_pool();
   xSemaphoreTake(pool->free_sem, portMAX_DELAY);  // infinite wait
   return pool->buffers[pool->write_idx];
 }
 
 // producer:signal buffer filled
-void buffer_pool_signal_filled(buffer_pool_t* pool) {
+void buffer_pool_signal_filled(void) {
+  buffer_pool_t* pool = get_fb_pool();
   pool->write_idx = (pool->write_idx + 1)%POOL_SIZE;
   xSemaphoreGive(pool->used_sem);
 }
 
 // consumer: get filled buffer
-camera_fb_t* buffer_pool_get_filled(buffer_pool_t* pool) {
+camera_fb_t* buffer_pool_get_filled(void) {
+  buffer_pool_t* pool = get_fb_pool();
   xSemaphoreTake(pool->used_sem, portMAX_DELAY);
   return pool->buffers[pool->read_idx];
 }
 
 // consumer:signal buffer processed
-void buffer_pool_signal_processed(buffer_pool_t* pool) {
+void buffer_pool_signal_processed(void) {
+  buffer_pool_t* pool = get_fb_pool();
   pool->read_idx = (pool->read_idx + 1)%POOL_SIZE;
   xSemaphoreGive(pool->free_sem);
 }
 
 // display: peek at current buffer (non-destructive)
-camera_fb_t* buffer_pool_peek(buffer_pool_t* pool) {
+camera_fb_t* buffer_pool_peek(void) {
+  buffer_pool_t* pool = get_fb_pool();
   // very short semaphore action.
   xSemaphoreTake(pool->mutex, portMAX_DELAY);
   camera_fb_t* frame = pool->buffers[pool->read_idx];

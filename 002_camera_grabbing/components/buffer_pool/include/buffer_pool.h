@@ -7,6 +7,9 @@ single producer, single consumer arrangement
 
 author: Joris Kampman, Saxion SMART, winter 25/26
 */
+#ifndef BUFFER_POOL_H
+#define BUFFER_POOL_H
+
 #pragma once  // replaces include guards
 #include "esp_camera.h"
 #include "freertos/FreeRTOS.h"  // IWYU pragma: keep
@@ -27,8 +30,11 @@ typedef struct {
 
 buffer_pool_t* get_fb_pool(void);
 void buffer_pool_init(void);
-void buffer_pool_deinit(buffer_pool_t* pool);
-camera_fb_t* buffer_pool_get_empty(buffer_pool_t* pool);
-void buffer_pool_signal_filled(buffer_pool_t* pool);
-void buffer_pool_signal_processed
+void buffer_pool_deinit(void);
+void buffer_pool_signal_filled(void);
+void buffer_pool_signal_processed(void);
+camera_fb_t* buffer_pool_get_empty(void);
+camera_fb_t* buffer_pool_get_filled(void);
+camera_fb_t* buffer_pool_get_peek(void);
 
+#endif

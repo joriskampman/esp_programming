@@ -7,6 +7,9 @@ idf_component_register(
 
   REQUIRES
     common
+    buffer_pool
+    camera
+    esp32-camera
 
   # note camera will be built first due to this dependency here
 )
