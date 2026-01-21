@@ -5,6 +5,7 @@ common functions, getters and setters of parameters
 #include <stdint.h>
 
 // defined variables
+static float display_rate_hz_f;
 static float frame_rate_hz_f;
 static float mon_interval_ms;
 
@@ -18,6 +19,7 @@ static bool enable_mem_check;
 static bool enable_frame_dropping_check;
 
 void common_init(void) {
+  display_rate_hz_f = 0.5f;
   frame_rate_hz_f = 5.0f;
   mon_interval_ms = 10.0f*b2m_f;
 
@@ -31,6 +33,14 @@ void common_init(void) {
 }
 
 // getters and setters
+float get_display_rate_hz_f() {
+  return display_rate_hz_f;
+}
+
+void set_display_rate_hz_f(float drate) {
+  display_rate_hz_f = drate;
+}
+
 float get_frame_rate_hz_f() {
   return frame_rate_hz_f;
 }

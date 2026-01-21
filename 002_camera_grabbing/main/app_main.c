@@ -23,11 +23,13 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #include "monitoring.h"
 #include "camera.h"
 #include "common.h"
+#include "buffer_pool.h"
+#include "display.h"
 
 static const char* TAG = "main";
 
 // creates a queueu (analog: post office with 10 mailboxes)
-QueueHandle_t frame_event_queue = NULL;  // initialize to NULL (can't be an initializer)
+// QueueHandle_t frame_event_queue = NULL;  // initialize to NULL (can't be an initializer)
 
 void app_main(void) {
   common_init();
@@ -51,12 +53,20 @@ void app_main(void) {
     ESP_LOGI(TAG, "PSRAM initialized successfully");
   }
 
-  // create Queue, if fail --> return
-  frame_event_queue = xQueueCreate(get_queue_depth(), sizeof(frame_event_t));
-  if (frame_event_queue == NULL) {
-    ESP_LOGE(TAG, "Failed to create frame event queue.");
+  // init frame pool (after PSRAM init)
+  // check if the buffer pool pointer is not NULL
+  buffer_pool_init();  // initialize the static fb_pool variable
+  if (!get_fb_pool()) {
+    ESP_LOGE(TAG, "fb_pool initialization failed!");
     return;
   }
+
+  // // create Queue, if fail --> return
+  // frame_event_queue = xQueueCreate(get_queue_depth(), sizeof(frame_event_t));
+  // if (frame_event_queue == NULL) {
+  //   ESP_LOGE(TAG, "Failed to create frame event queue.");
+  //   return;
+  // }
 
   // initialize perf_mon
   static perf_mon_t perf_mon = {0};
@@ -82,9 +92,9 @@ void app_main(void) {
     return;
   }
 
-  // create camera task with sufficient stack size
+  // create camera task by getting the created buffer pool
   camera_tasks_params_t camera_params = {
-    .frame_event_queue = frame_event_queue,
+    .fb_pool = get_fb_pool(),
   };
 
   ESP_LOGI(TAG, "starting camera_task()");
@@ -95,6 +105,15 @@ void app_main(void) {
   }
   ESP_LOGI(TAG, "Camera stream task started at 5 Hz");
 
+  // DISPLAY TASK
+  ESP_LOGI(TAG, "staring frame_display_task()");
+  TaskHandle_t frame_display_task_handle;
+  if (xTaskCreate(frame_display_task, "frame_display_task", 4096, NULL, 3,
+                  &frame_display_task_handle) != pdPASS) {
+                    ESP_LOGE(TAG, "Failed to create frame_display_task");
+                    return;
+  }
+  ESP_LOGI(TAG, "frame display task started at %0.1f Hz", get_display_rate_hz_f());
   // keep main task alive
   while (1) {
     vTaskDelay(pdMS_TO_TICKS(1000));

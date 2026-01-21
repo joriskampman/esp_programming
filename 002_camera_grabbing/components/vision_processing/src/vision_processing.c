@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include "vision_processing.h"
+#include "esp_log.h"
+
+static const char* VPTAG = "vision processing";
 
 void print_frame_data(const uint8_t *p_buf, size_t len) {
   // corner case: no buffer available
   if (p_buf == NULL || len == 0) {
-    printf("ERROR: invalid buffer\n");
+    ESP_LOGE(VPTAG, "Not a valid frame buffer found. NULL pointers");
     return;
   }
 

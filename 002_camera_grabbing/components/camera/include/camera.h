@@ -4,6 +4,8 @@
 #include "esp_err.h"
 #include "freertos/idf_additions.h"
 #include "common.h"
+#include "esp_camera.h"
+#include "buffer_pool.h"
 
 // DEFINE PINOUT FOR CAMERA
 // from: ../pics/pinout.avif
@@ -27,7 +29,7 @@
 
 // typedefs
 typedef struct {
-  QueueHandle_t frame_event_queue;
+  buffer_pool_t* fb_pool;
 } camera_tasks_params_t;
 
 // declare functions
@@ -38,6 +40,8 @@ static const uint32_t FB_COUNT = 2;
 float get_fb_count();
 
 esp_err_t init_camera(void);
+
+void get_frame_dims(framesize_t, size_t*, size_t*);
 
 void camera_task(void* pvParameters);
 

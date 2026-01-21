@@ -12,6 +12,8 @@ idf_component_register(
     camera
     system
     esp32-camera
+    buffer_pool
+    display
     # vision_processing
     # webserver
 

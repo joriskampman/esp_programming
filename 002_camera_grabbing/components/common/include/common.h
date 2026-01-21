@@ -99,6 +99,9 @@ extern "C" {
 float get_frame_rate_hz_f();
 void set_frame_rate_hz_f(float);
 
+float get_display_rate_hz_f(void);
+void set_display_rate_hz_f(float);
+
 bool get_enable_perf_mon();
 
 bool get_enable_runtime_mon();

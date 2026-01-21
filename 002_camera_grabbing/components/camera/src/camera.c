@@ -6,17 +6,49 @@
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_camera.h"
+#include "portmacro.h"
 #include "vision_processing.h"
 #include "common.h"
 #include "monitoring.h"
 #include <stdint.h>
+#include "buffer_pool.h"
 
 static const char* CAM_TAG = "camera";
+
+void get_frame_dims(framesize_t size, size_t *width, size_t *height) {
+  // lookup table for standard resolutions
+  static const int dims[][2] = {
+    [FRAMESIZE_96X96]     = {96, 96},
+    [FRAMESIZE_QQVGA]     = {160, 120},
+    [FRAMESIZE_QCIF]      = {176, 144},
+    [FRAMESIZE_HQVGA]     = {240, 176},
+    [FRAMESIZE_240X240]   = {240, 240},
+    [FRAMESIZE_QVGA]      = {320, 240},
+    [FRAMESIZE_CIF]       = {400, 296},
+    [FRAMESIZE_HVGA]      = {480, 320},
+    [FRAMESIZE_VGA]       = {640, 480},
+    [FRAMESIZE_SVGA]      = {800, 600},
+    [FRAMESIZE_XGA]       = {1024, 768},
+    [FRAMESIZE_HD]        = {1280, 720},
+    [FRAMESIZE_SXGA]      = {1280, 1024},
+    [FRAMESIZE_UXGA]      = {1600, 1200},
+  };
+
+  if (size >= 0 && size < sizeof(dims)/(2*sizeof(int))) {
+    *width = dims[size][0];
+    *height = dims[size][1];
+  } else {
+    ESP_LOGE(CAM_TAG, "The framesize enumerator %s is not a valid key", size);
+    return;
+  }
+}  // get_frame_dims
+
 
 float get_xclk_freq_hz_f() {
   return DATA_RATE_HZ;
 }
 
+// getter for frame buffer count (queue related)
 float get_fb_count() {
   return FB_COUNT;
 }
@@ -107,9 +139,8 @@ esp_err_t init_camera(void) {
 
 void camera_task(void *pvParameters) {
   // get the camera task parameters
-  camera_tasks_params_t* params = (camera_tasks_params_t*)pvParameters;
+  camera_tasks_params_t* cam_pars = (camera_tasks_params_t*)pvParameters;
 
-  QueueHandle_t queue = params->frame_event_queue;
   static uint32_t frame_counter = 0;
 
   TickType_t xLastWakeTime = xTaskGetTickCount();
@@ -134,6 +165,8 @@ void camera_task(void *pvParameters) {
         .frame_size = fb->len
       };
 
+      // place the frame in the buffer pool if there is a free_sem available
+      buffer_pool_get_empty()
       // send the frame actually to the queue
       if (queue != NULL) {
         if (xQueueSend(queue, &event, 0) != pdTRUE) {

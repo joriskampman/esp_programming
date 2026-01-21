@@ -11,6 +11,7 @@ idf_component_register(
     esp32-camera
     vision_processing
     system
+    buffer_pool
 
 
   # PRIV_REQUIRES

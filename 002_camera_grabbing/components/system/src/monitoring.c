@@ -7,7 +7,9 @@
 #include "portmacro.h"
 #include "monitoring.h"
 #include "common.h"
+#include "esp_log.h"
 
+static const char* MONTAG = "monitoring";
 
 void print_memory_stats(mem_state_t* mem_state) {
   // create 1 big string that is the log
@@ -33,7 +35,7 @@ void print_memory_stats(mem_state_t* mem_state) {
     mem_state->delta_psram_largest_free_mb*M2k_f);
 
   // ESP_LOGD(MEM_TAG, "Monitoring memory and stack ...");
-  printf(ANSI_DEBUG "%s" ANSI_RESET, log_buffer);
+  ESP_LOGD(MONTAG, "%s", log_buffer);
 
 } // print_memory_stats
 
@@ -94,7 +96,7 @@ void update_frame_stats(frame_stats_t* stats, uint32_t current_count, uint64_t t
   uint32_t expected = stats->last_frame_count + 1;
   if (current_count > expected) {
     stats->dropped_frames += (current_count - expected);
-    printf(ANSI_DEBUG "Frame drop detected! Expected %" PRIu32 ", got %" PRIu32 "\n" ANSI_RESET,
+    ESP_LOGD(MONTAG,"Frame drop detected! Expected %" PRIu32 ", got %" PRIu32 "\n",
            expected, current_count);
   }  // more than expected -> frames are dropped
 
@@ -113,7 +115,7 @@ void update_frame_stats(frame_stats_t* stats, uint32_t current_count, uint64_t t
 }  // update_frame_stats()
 
 void print_frame_stats(frame_stats_t* fstats) {
-  printf(ANSI_DEBUG "Frame fstats: Total=%" PRIu32 ", Dropped=%" PRIu32 " (%.1f%%), "
+  ESP_LOGD(MONTAG, "Frame fstats: Total=%" PRIu32 ", Dropped=%" PRIu32 " (%.1f%%), "
         "fps=%.1f/%.1f (actual/expected)\n" ANSI_RESET,
         fstats->total_frames, fstats->dropped_frames,
         (fstats->total_frames > 0) ?
@@ -144,16 +146,14 @@ void perf_mon_task(void *pvParameters) {
       update_frame_stats(&perf_mon->frame_stats,
                       event.frame_count,
                       event.timestamp);
-      // printf(ANSI_DEBUG "Received frame %" PRIu32 "\n" ANSI_RESET,
-      //       event.frame_count);
     }
 
     if (events_processed == 0) {
-      printf(ANSI_WARNING "No frame events received in this interval\n" ANSI_RESET);
+      ESP_LOGW(MONTAG, "No frame events received in this interval\n");
     }
 
     // after the update -> print info
-    printf(ANSI_DEBUG "%" PRIu32 " events were in the queue (%" PRIu32" max)\n" ANSI_RESET,
+    ESP_LOGD(MONTAG, "%" PRIu32 " events were in the queue (%" PRIu32" max)\n",
             events_processed, get_queue_depth());
     print_frame_stats(&perf_mon->frame_stats);
 
@@ -162,7 +162,7 @@ void perf_mon_task(void *pvParameters) {
     if (get_enable_runtime_mon()) {
       vTaskGetRunTimeStats(statsBuffer);
 
-      printf(ANSI_SPECIAL "CPU statistics:\n%s\n" ANSI_RESET, statsBuffer);
+      ESP_LOGD(MONTAG, "CPU statistics:\n%s\n", statsBuffer);
     }
 
         // update memory state in-place
@@ -171,9 +171,7 @@ void perf_mon_task(void *pvParameters) {
       print_memory_stats(&perf_mon->mem_state);
       // high water mark
       stack_high_water = uxTaskGetStackHighWaterMark(NULL);
-      printf(ANSI_DEBUG "Task stack high water mark = %d of 4096 bytes\n" ANSI_RESET, stack_high_water);
+      ESP_LOGD(MONTAG,"Task stack high water mark = %d of 4096 bytes\n", stack_high_water);
     }
-
-
   }
 }  // perf_mon_task
