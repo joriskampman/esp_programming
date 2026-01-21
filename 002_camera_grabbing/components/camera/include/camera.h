@@ -1,11 +1,12 @@
+/*
+camera.h
+*/
 #ifndef CAMERA_H
 #define CAMERA_H
 
-#include "esp_err.h"
-#include "freertos/idf_additions.h"
-#include "common.h"
-#include "esp_camera.h"
 #include "buffer_pool.h"
+#include "esp_err.h"
+#include "common.h"
 
 // DEFINE PINOUT FOR CAMERA
 // from: ../pics/pinout.avif

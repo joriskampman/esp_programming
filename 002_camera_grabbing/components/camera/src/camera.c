@@ -141,6 +141,7 @@ void camera_task(void *pvParameters) {
   // get the camera task parameters
   camera_tasks_params_t* cam_pars = (camera_tasks_params_t*)pvParameters;
 
+  printf(ANSI_SPECIAL "fb_pool pointer %p\n" ANSI_RESET, &cam_pars->fb_pool);
   static uint32_t frame_counter = 0;
 
   TickType_t xLastWakeTime = xTaskGetTickCount();

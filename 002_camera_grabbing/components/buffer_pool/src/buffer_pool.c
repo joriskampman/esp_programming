@@ -3,11 +3,11 @@ buffer_pool.c
 
 contains init and deinit
 */
+// #include "freertos/FreeRTOS.h" // IWYU pragma: keep
+// #include "freertos/semphr.h"
 #include "buffer_pool.h"
-#include "freertos/FreeRTOS.h" // IWYU pragma: keep
-#include "freertos/semphr.h"
 #include "esp_log.h"
-#include "sensor.h"
+// #include "sensor.h"
 #include "camera.h"
 
 static const char* BUFTAG = "buffer pool";
@@ -60,34 +60,46 @@ void buffer_pool_init(void) {
   }
   // allocate camera buffers
   for (int ibuf = 0; ibuf < POOL_SIZE; ibuf++) {
+    printf(ANSI_SPECIAL "A" ANSI_RESET);
     fb_pool->buffers[ibuf] = malloc(sizeof(camera_fb_t));
 
     // check if there
+    printf(ANSI_SPECIAL "B" ANSI_RESET);
     if (!fb_pool->buffers[ibuf]) {
       goto error;
     }
 
+    printf(ANSI_SPECIAL "C" ANSI_RESET);
     // initialize to all zeros
     memset(fb_pool->buffers[ibuf], 0, sizeof(camera_fb_t));
 
     size_t buffer_size = 320*240; // QVGA black and white
     fb_pool->buffers[ibuf]->buf = malloc(buffer_size);
     if (!fb_pool->buffers[ibuf]->buf) {
+      printf(ANSI_SPECIAL "D" ANSI_RESET);
       goto error;
     }
 
+    printf(ANSI_SPECIAL "E" ANSI_RESET);
     fb_pool->buffers[ibuf]->len = buffer_size;
     fb_pool->buffers[ibuf]->format = PIXFMT;
     // auto-calculate the size from a lookup table
     get_frame_dims(FRAMESIZE, &fb_pool->buffers[ibuf]->width, &fb_pool->buffers[ibuf]->height);
+    printf(ANSI_SPECIAL "F" ANSI_RESET);
   }
 
+  printf(ANSI_SPECIAL "G" ANSI_RESET);
   // initialize the indices
   fb_pool->write_idx = 0;
   fb_pool->read_idx = 0;
 
+  return;
+
 error:
+  printf(ANSI_SPECIAL "H" ANSI_RESET);
   buffer_pool_deinit();
+  fb_pool = NULL;
+  printf(ANSI_SPECIAL "I" ANSI_RESET);
 }  // buffer_pool_init
 
 // -----------------------------------------------------------------------------------------

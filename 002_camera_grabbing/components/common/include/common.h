@@ -1,4 +1,6 @@
 /*
+common.h
+
 defines some constants that are globally valid
 */
 #ifndef CONSTANTS_H

@@ -1,7 +1,12 @@
+/*
+vision_processing.c
+*/
+
 #include <stdio.h>
-#include "vision_processing.h"
 #include "esp_log.h"
+#include "buffer_pool.h"
 #include "common.h"
+#include "vision_processing.h"
 
 static const char* VPTAG = "vision processing";
 
