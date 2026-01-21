@@ -29,4 +29,6 @@ buffer_pool_t* get_fb_pool(void);
 void buffer_pool_init(void);
 void buffer_pool_deinit(buffer_pool_t* pool);
 camera_fb_t* buffer_pool_get_empty(buffer_pool_t* pool);
+void buffer_pool_signal_filled(buffer_pool_t* pool);
+void buffer_pool_signal_processed
 
