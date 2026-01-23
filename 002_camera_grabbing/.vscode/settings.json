@@ -11,13 +11,13 @@
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir={workspaceFolder}/build"
+    "--compile-commands-dir=/home/joris/Documents/004_home_projects/001_personal_projects/004_esp_programming/002_camera_grabbing/build"
   ],
   "idf.flashType": "JTAG",
   "idf.port": "/dev/ttyACM0",
   "C_Cpp.intelliSenseEngine": "disabled",
   "idf.currentSetup": "/home/joris/esp/v5.5.1/esp-idf",
-  "idf.espIdfPath": "/home/joris/esp/latest",
+  "idf.espIdfPath": "/home/joris/esp/v5.5.1/esp-idf",
   "idf.toolsPath": "/home/joris/.espressif",
   "idf.pythonInstallPath": "/usr/bin/python3"
 }

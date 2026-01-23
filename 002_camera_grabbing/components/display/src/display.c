@@ -8,6 +8,7 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #include "esp_log.h"
 #include "common.h"
 #include "freertos/idf_additions.h"
+#include "buffer_pool.h"
 
 static const char* DISPTAG = "display frame";
 
@@ -15,12 +16,8 @@ static camera_fb_t display_fb = {0};  // full frame buffer
 
 void update_display_fb(buffer_pool_t* pool) {
   // create static camera_fb_t variable
-
-  // (try to) take the mutex semaphore
-  xSemaphoreTake(pool->mutex, portMAX_DELAY);
-
   // get the source frame
-  camera_fb_t* src = pool->buffers[pool->read_idx];
+  camera_fb_t* src = buffer_pool_disp_get_filled();
 
   // allocate frame buffer if necessary (is it??)
   if (!display_fb.buf || display_fb.len != src->len) {
@@ -38,9 +35,7 @@ void update_display_fb(buffer_pool_t* pool) {
   // copy pixel data
   memcpy(display_fb.buf, src->buf, src->len);
 
-  // give back semaphore
-  xSemaphoreGive(pool->mutex);
-
+  buffer_pool_signal_dislayed();
 } // update_display_frame
 
 camera_fb_t* get_display_fb(void) {

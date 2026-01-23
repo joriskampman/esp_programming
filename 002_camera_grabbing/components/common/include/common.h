@@ -11,7 +11,8 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
-#include "portmacro.h"  // IWYU pragma: keep
+#include "freertos/FreeRTOS.h"
+// #include "portmacro.h"  // IWYU pragma: keep
 
 // user defines
 

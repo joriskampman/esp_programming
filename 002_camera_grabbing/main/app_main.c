@@ -106,15 +106,15 @@ void app_main(void) {
   }
   ESP_LOGI(TAG, "Camera stream task started at %0.1f Hz", get_frame_rate_hz_f());
 
-  // -------------------- vision_processing task --------------------------------
-  ESP_LOGI(TAG, "starting vision_processing_task()");
-  TaskHandle_t vision_processing_task_handle;
-  if (xTaskCreate(vision_processing_task, "vision_processing_task", 4096, NULL, 5,
-      &vision_processing_task_handle) != pdPASS) {
-    ESP_LOGE(TAG, "Failed to create processing task");
-    return;
-  }
-  ESP_LOGI(TAG, "Vision processing task started at %0.1f Hz", get_vidproc_rate_hz_f());
+  // // -------------------- vision_processing task --------------------------------
+  // ESP_LOGI(TAG, "starting vision_processing_task()");
+  // TaskHandle_t vision_processing_task_handle;
+  // if (xTaskCreate(vision_processing_task, "vision_processing_task", 4096, NULL, 5,
+  //     &vision_processing_task_handle) != pdPASS) {
+  //   ESP_LOGE(TAG, "Failed to create processing task");
+  //   return;
+  // }
+  // ESP_LOGI(TAG, "Vision processing task started at %0.1f Hz", get_vidproc_rate_hz_f());
 
   // // ------------------- display task -------------------------------------------
   // ESP_LOGI(TAG, "staring frame_display_task()");
