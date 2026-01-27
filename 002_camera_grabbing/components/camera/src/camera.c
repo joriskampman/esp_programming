@@ -160,14 +160,14 @@ void camera_task(void *pvParameters) {
       uint64_t timestamp_us = (uint64_t)fb->timestamp.tv_sec*1000000UL
       + (uint64_t)fb->timestamp.tv_usec;
 
-      frame_event_t event = {
-        .frame_count = frame_counter++,
-        .timestamp = timestamp_us,
-        .frame_size = fb->len
-      };
+      // frame_event_t event = {
+      //   .frame_count = frame_counter++,
+      //   .timestamp = timestamp_us,
+      //   .frame_size = fb->len
+      // };
 
       // place the frame in the buffer pool if there is a free_sem available
-      camera_fb_t* fb_empty = buffer_pool_get_empty();
+      camera_fb_t* fb_empty = buffer_pool_get_write_buffer();
 
       // copy the fb to the fb_empty
       memcpy(fb_empty->buf, fb->buf, fb->len);

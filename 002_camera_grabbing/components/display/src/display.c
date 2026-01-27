@@ -9,50 +9,33 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #include "common.h"
 #include "freertos/idf_additions.h"
 #include "buffer_pool.h"
+#include "freertos/projdefs.h"
+#include "vision_processing.h"
 
-static const char* DISPTAG = "display frame";
-
-static camera_fb_t display_fb = {0};  // full frame buffer
-
-void update_display_fb(buffer_pool_t* pool) {
-  // create static camera_fb_t variable
-  // get the source frame
-  camera_fb_t* src = buffer_pool_disp_get_filled();
-
-  // allocate frame buffer if necessary (is it??)
-  if (!display_fb.buf || display_fb.len != src->len) {
-    free(display_fb.buf);
-    display_fb.buf = malloc(src->len);
-    display_fb.len = src->len;
-  }
-
-  // copy all metadata
-  display_fb.width = src->width;
-  display_fb.height = src->height;
-  display_fb.format = src->format;
-  display_fb.timestamp = src->timestamp;
-
-  // copy pixel data
-  memcpy(display_fb.buf, src->buf, src->len);
-
-  buffer_pool_signal_dislayed();
-} // update_display_frame
-
-camera_fb_t* get_display_fb(void) {
-  return &display_fb;
-} // get_display_fb
+static const char* DISPTAG = "display";
 
 
 void frame_display_task(void* pvParameters) {
   ESP_LOGD(DISPTAG, "displaying a frame (to be implemented)\n");
 
-  // prevent returning
-  TickType_t xLastWakeTime = xTaskGetTickCount();
+  // get the correct frame buffer
+  buffer_pool_t* pool = get_buffer_pool();
+  camera_fb_t* fb = pool->buffers[POOL_SIZE];  // the last one is always the display frame
 
+  // timeing for TaskDelayUntil
+  TickType_t xLastWakeTime = xTaskGetTickCount();
   const TickType_t DISP_INTV_TICKS = pdMS_TO_TICKS(b2m_f/get_display_rate_hz_f());
 
   while (1) {
-    ESP_LOGV(DISPTAG, ".... frame displayed ...");
-    vTaskDelayUntil(&xLastWakeTime, DISP_INTV_TICKS);
+
+    // check if semaphore exists and then quickly check again.
+    if (xSemaphoreTake(pool->display_mutex, 0) == pdTRUE) {
+      ESP_LOGD(DISPTAG, ".... frame displayed ...");
+      print_frame_data(fb->buf, fb->len);
+      xSemaphoreGive(pool->display_mutex);
+
+      vTaskDelayUntil(&xLastWakeTime, DISP_INTV_TICKS);
+    }
+
   }
 } // frame_display_task

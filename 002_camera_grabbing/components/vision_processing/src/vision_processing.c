@@ -15,21 +15,16 @@ void vision_processing_task(void* pvParameters) {
   TickType_t xLastWakeTime = xTaskGetTickCount();
   const TickType_t REFRESH_INTERVAL_TICK = pdMS_TO_TICKS(b2m_f/get_vidproc_rate_hz_f());  // 2 Hz = 200 ms
 
+
   while (1) {
     // get the previous wake time
     camera_fb_t* fb = buffer_pool_proc_get_filled();
 
-    // check if the fb is correct
-    if (!fb || !fb->buf || fb->len == 0) {
-      ESP_LOGE(VPTAG, "Received frame from buffer pool is incorrect!");
-      if (fb != NULL) {
-        // move read pointer 1 further
-        buffer_pool_signal_processed();  // do semaphore handling correctly
-      }  // fb itself is not NULL
-
-      // move to end
+    if (!fb) {
+      ESP_LOGW(VPTAG, "The buffer frame pointer is NULL");
+      vTaskDelayUntil(&xLastWakeTime, REFRESH_INTERVAL_TICK);
       continue;
-    }  // if: check buffer correctness
+    }
 
     // check over, buffer correct
     ESP_LOGI(VPTAG, "Processing frame: %d bytes, %dx%d, format: %d",

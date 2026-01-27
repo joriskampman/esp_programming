@@ -21,7 +21,8 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 
 // types and structures
 typedef struct {
-  camera_fb_t* buffers[POOL_SIZE];  // array of frame buffers
+  camera_fb_t* buffers[POOL_SIZE+1];  // array of frame buffers. the 1 is the display pool
+  SemaphoreHandle_t display_mutex;  // display
   volatile bool buffer_in_use[POOL_SIZE];  // array to check if buffer is in use
   volatile int write_idx;           // index of buffer to WRITE To
   volatile int proc_idx;            // index of buffer to PROCESS
@@ -29,16 +30,17 @@ typedef struct {
 } buffer_pool_t;
 
 void inc_idx(volatile int*);
-buffer_pool_t* get_fb_pool(void);
+void upd_idx(volatile int*, int);
+void print_buffer_use(void);
+void upd_buffer_in_use(int, bool);
+buffer_pool_t* get_buffer_pool(void);
 void buffer_pool_init(void);
 void buffer_pool_deinit(void);
 void buffer_pool_signal_filled(void);
 void buffer_pool_signal_processed(void);
-camera_fb_t* buffer_pool_get_empty(void);
+camera_fb_t* buffer_pool_get_write_buffer(void);
 void buffer_pool_signal_filled(void);
 camera_fb_t* buffer_pool_proc_get_filled(void);
-camera_fb_t* buffer_pool_disp_get_filled(void);
 void buffer_pool_signal_processed(void);
-void buffer_pool_signal_dislayed(void);
 
 #endif

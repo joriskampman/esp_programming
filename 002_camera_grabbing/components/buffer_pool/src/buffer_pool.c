@@ -9,17 +9,74 @@ contains init and deinit
 #include "esp_log.h"
 // #include "sensor.h"
 #include "camera.h"
+#include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
+#include "portmacro.h"
+#include <stdarg.h>
+
 
 static const char* BUFTAG = "buffer pool";
 static buffer_pool_t* fb_pool = NULL;
 
-buffer_pool_t* get_fb_pool(void) {
+buffer_pool_t* get_buffer_pool(void) {
   return fb_pool;
 }
 
+void inc_idx(volatile int* idx) {
+  *idx = (*idx + 1)%POOL_SIZE;
+  print_buffer_use();
+} // inc_idx
+
+void upd_idx(volatile int* idx, int val) {
+  /* this sets the index immediately */
+  // check val
+  if (val < 0 || val >= POOL_SIZE) {
+    ESP_LOGE(BUFTAG, "The requested index value (%d) is not valid", val);
+    return;
+  }
+  *idx = val;
+  print_buffer_use();
+}  // upd_idx
+
+void print_buffer_use(void) {
+  buffer_pool_t* pool = get_buffer_pool();
+  // printf(ANSI_SPECIAL "write/proc index (%d/%d)", pool->write_idx, pool->proc_idx);
+  printf(ANSI_SPECIAL "Buffers in use: ");
+  for (int ibuf = 0; ibuf < POOL_SIZE; ibuf++) {
+    printf(" | ");
+    if (pool->buffer_in_use[ibuf]) {
+      printf("U");
+    } else {
+      printf("-");
+    }
+    // check if there is a pointer to it
+    if (pool->write_idx == ibuf) {
+      printf("W");
+    }
+    if (pool->proc_idx == ibuf) {
+      printf("P");
+    }
+    if (pool->disp_idx == ibuf) {
+      printf("D");
+    // } else {
+    //   printf(" ");
+    }
+  } // loop buffers in pool
+  printf(" |\n" ANSI_RESET);
+} // print_buffer_use
+
+void upd_buffer_in_use(int idx, bool val) {
+
+  buffer_pool_t* fb = get_buffer_pool();
+  ESP_LOGV(BUFTAG, "Setting buffer (%d) to %s", idx, val ? "USED": "FREE");
+  fb->buffer_in_use[idx] = val;
+
+  print_buffer_use();
+}  // upd_buffer_in_use
+
+
 void buffer_pool_deinit(void) {
-  buffer_pool_t* pool = get_fb_pool();
+  buffer_pool_t* pool = get_buffer_pool();
   if (!pool) {
     ESP_LOGV(BUFTAG, "The buffer pool points is already NULL");
     return;
@@ -52,7 +109,7 @@ void buffer_pool_init(void) {
   memset(fb_pool, 0, sizeof(buffer_pool_t));
 
   // allocate camera buffers
-  for (int ibuf = 0; ibuf < POOL_SIZE; ibuf++) {
+  for (int ibuf = 0; ibuf < POOL_SIZE+1; ibuf++) {
     fb_pool->buffers[ibuf] = malloc(sizeof(camera_fb_t));
 
     // check if there
@@ -85,11 +142,18 @@ void buffer_pool_init(void) {
 
   // initialize the indices
   for (int i=0; i < POOL_SIZE; i++) {
-    fb_pool->buffer_in_use[i] = false;
+    upd_buffer_in_use(i, false);
   }
+
+  ESP_LOGI(BUFTAG, "set mutex for display");
+  fb_pool->display_mutex = xSemaphoreCreateMutex();
+
+  ESP_LOGI(BUFTAG, "Initialize [W] to -1");
   fb_pool->write_idx = -1;
+  ESP_LOGI(BUFTAG, "Initialize [P] to -1");
   fb_pool->proc_idx = -1;
-  fb_pool->disp_idx = -1;
+  ESP_LOGI(BUFTAG, "Initialize [D] to 3");
+  fb_pool->disp_idx = 3;  // fixed buffer, might be split off completely
 
   ESP_LOGI(BUFTAG, "Buffer pool initialized with %d buffers.", POOL_SIZE);
 }  // buffer_pool_init
@@ -97,15 +161,13 @@ void buffer_pool_init(void) {
 // -----------------------------------------------------------------------------------------
 // helper functions
 // -----------------------------------------------------------------------------------------
-void inc_idx(volatile int* idx) {
-  *idx = (*idx + 1)%POOL_SIZE;
-}
-
 // producter: get empty file buffer
-camera_fb_t* buffer_pool_get_empty(void) {
+camera_fb_t* buffer_pool_get_write_buffer(void) {
+  ESP_LOGV(BUFTAG, ">> buffer_pool_get_write_buffer()");
   // get pool
-  buffer_pool_t* pool = get_fb_pool();
+  buffer_pool_t* pool = get_buffer_pool();
   if (!pool) {
+    ESP_LOGV(BUFTAG, "Buffer pool not valid");
     return NULL;
   }
 
@@ -113,119 +175,120 @@ camera_fb_t* buffer_pool_get_empty(void) {
   bool fnd = false;
   for (int ibuf=0; ibuf < POOL_SIZE; ibuf++) {
     if (!pool->buffer_in_use[ibuf]) {
-      ESP_LOGV(BUFTAG, "write buffer (%d) is free", ibuf);
-      pool->write_idx = ibuf;
-      pool->buffer_in_use[ibuf] = true;
+      // ESP_LOGV(BUFTAG, "write buffer (%d) is free", ibuf);
+      ESP_LOGV(BUFTAG, "Update [W] to %d", ibuf);
+      upd_idx(&pool->write_idx, ibuf);
       fnd = true;
       break;
     }
   }
 
   if (!fnd) {
-    ESP_LOGE(BUFTAG, "No free write buffers found!");
-    return NULL;
+    ESP_LOGW(BUFTAG, "No free write buffers found! Overwrite old buffer that is not proc_idx or disp_idx");
+    // check the pointers
+    int ovw_idx = -1;
+    for (int ibuf = 0; ibuf < POOL_SIZE; ibuf++) {
+      if (ibuf != pool->proc_idx && ibuf != pool->disp_idx) {
+        ovw_idx = ibuf;
+      }
+    }
+    if (ovw_idx == -1) {
+      ESP_LOGE(BUFTAG, "There is no buffer that can be overwritten. This cannot happen!!");
+      return NULL;
+    }
+    ESP_LOGW(BUFTAG, "Overwrite [W] to %d", ovw_idx);
+    upd_idx(&pool->write_idx, ovw_idx);
   }
+
+  // update the buffer in use
+  upd_buffer_in_use(pool->write_idx, true);
+
+  // return the frame buffer
   return pool->buffers[pool->write_idx];
 }
 
-// producer:signal buffer filled
 void buffer_pool_signal_filled(void) {
-  buffer_pool_t* pool = get_fb_pool();
+  ESP_LOGV(BUFTAG, ">> buffer_pool_signal_filled()");
+  buffer_pool_t* pool = get_buffer_pool();
   if (!pool) {
     ESP_LOGW(BUFTAG, "Buffer pool has NULL pointer");
   }
 
   // update write index
-  pool->proc_idx = pool->write_idx;
+  ESP_LOGV(BUFTAG, "Update [P] to %d", pool->write_idx);
+  upd_idx(&pool->proc_idx, pool->write_idx);
+
+  // release all buffers that are not proc_idx
+  for (int ibuf=0; ibuf < POOL_SIZE; ibuf++) {
+    // if is in use, but not processed -> set it free!
+    if (pool->buffer_in_use[ibuf] && ibuf != pool->proc_idx) {
+      upd_buffer_in_use(ibuf, false);
+      // ESP_LOGV(BUFTAG, "Setting buffer (%d) free", ibuf);
+    }
+  }
+  ESP_LOGV(BUFTAG, "update [W] to %d", pool->write_idx);
   inc_idx(&pool->write_idx);
-  ESP_LOGV(BUFTAG, "update write_idx = %d", pool->write_idx);
-
-
 }
 
 // consumer: get filled buffer
 camera_fb_t* buffer_pool_proc_get_filled(void) {
-  buffer_pool_t* pool = get_fb_pool();
+  ESP_LOGV(BUFTAG, "buffer_pool_proc_get_filled()");
+  buffer_pool_t* pool = get_buffer_pool();
+
+  // check if buffer pool is valid
   if (!pool) {
     ESP_LOGW(BUFTAG, "The buffer pool is a NULL pointer");
   }
 
-  // check if buffer is not in use
-  if (pool->buffer_in_use[pool->proc_idx]) {
-    ESP_LOGW(BUFTAG, "processing buffer index is already in use! (by whom?)");
+  // check if proc_idx is already valid (startup behaviour)
+  if (pool->proc_idx < 0 || pool->proc_idx >= POOL_SIZE) {
+    ESP_LOGE(BUFTAG, "The proc_idx (%d) is not valid!", pool->proc_idx);
+    return NULL;
+  }
+
+  if (!pool->buffer_in_use[pool->proc_idx]) {
+    ESP_LOGE(BUFTAG, "processing buffer (%d) is somehow not marked as 'in use'", pool->proc_idx);
     return NULL;
   }
 
   // set the buffer_in_use at proc_idx to TRUE
-  pool->buffer_in_use[pool->proc_idx] = true;
-  pool->disp_idx = pool->proc_idx;  // same index, but cannot start, because in use
-  ESP_LOGV(BUFTAG, "Processing id takes buffer %d", pool->proc_idx);
+  upd_buffer_in_use(pool->proc_idx, true);
+  // ESP_LOGV(BUFTAG, "Processing id takes buffer %d", pool->proc_idx);
   return  pool->buffers[pool->proc_idx];
 }
 
 // consumer:signal buffer processed
 void buffer_pool_signal_processed(void) {
-  buffer_pool_t* pool = get_fb_pool();
+  ESP_LOGV(BUFTAG, "buffer_pool_signal_processed()");
+
+  buffer_pool_t* pool = get_buffer_pool();
   if (!pool) {
     ESP_LOGE(BUFTAG, "buffer pool pointer is NULL");
   }
 
   int iproc = pool->proc_idx;
+  camera_fb_t* procbuf = pool->buffers[iproc];
   // processing done -> release buffer
+
+  // take semaphore, wait if not available
+  xSemaphoreTake(pool->display_mutex, portMAX_DELAY);
+
+  // copy the frame to the buffer_pool[POOL_SIZE] (the display pool)
+  camera_fb_t* fb_disp = pool->buffers[POOL_SIZE];  // the last is the display buffer
+  memcpy(fb_disp->buf, procbuf->buf, procbuf->len);
+  // now the meta data
+  fb_disp->len = procbuf->len;
+  fb_disp->width = procbuf->width;
+  fb_disp->height = procbuf->height;
+  fb_disp->format = procbuf->format;
+  fb_disp->timestamp = procbuf->timestamp;
+  ESP_LOGV(BUFTAG, "Copied the fb to display buffer position (%d) for display", POOL_SIZE);
+  xSemaphoreGive(pool->display_mutex);
 
   // check if buffer is already released (should never happen)
   if (!pool->buffer_in_use[iproc]) {
     ESP_LOGE(BUFTAG, "The buffer for processing (%d) is already released. What gives?", iproc);
     return;
   }
+}  // buffer_pool_signal_processed
 
-  // release the buffer_in_use
-  pool->buffer_in_use[iproc] = false;
-  ESP_LOGV(BUFTAG, "Processing buffer (%d) is released", iproc);
-
-}
-
-// display: peek at current buffer (non-destructive)
-camera_fb_t* buffer_pool_display_get_filled(void) {
-  buffer_pool_t* pool = get_fb_pool();
-  if (!pool) {
-    ESP_LOGE(BUFTAG, "The buffer point is a NULL pointer");
-    return NULL;
-  }
-
-  int idisp = pool->disp_idx;
-
-  // ---- claim the buffer -------------
-  // check if buffer is in use
-  while (pool->buffer_in_use[idisp]) {
-
-    // wait for next iteration
-    vTaskDelay(pdMS_TO_TICKS(10.0f));
-  }
-
-  // now buffer is free
-  pool->buffer_in_use[idisp] = true;
-  ESP_LOGV(BUFTAG, "display buffer (%d) is claimed", idisp);
-
-  return pool->buffers[idisp];
-}
-
-void buffer_pool_signal_displayed(void) {
-  buffer_pool_t* pool = get_fb_pool();
-  if (!pool) {
-    ESP_LOGW(BUFTAG, "Buffer pool pointer is a NULL pointer");
-  }
-
-  int idisp = pool->disp_idx;
-
-  // check if already released (should not happen)
-  if (!pool->buffer_in_use[idisp]) {
-    ESP_LOGE(BUFTAG, "The display buffer (%d) is already released. That's just weird!");
-    return;
-  }
-
-  // release the buffer
-  pool->buffer_in_use[idisp] = false;
-  ESP_LOGV(BUFTAG, "Display buffer (%d) is released!");
-
-}
