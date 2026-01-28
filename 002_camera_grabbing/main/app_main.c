@@ -26,6 +26,7 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #include "buffer_pool.h"
 #include "display.h"
 #include "vision_processing.h"
+#include "wifi.h"
 
 static const char* TAG = "main";
 
@@ -54,6 +55,10 @@ void app_main(void) {
     ESP_LOGI(TAG, "PSRAM initialized successfully");
   }
 
+  // wifi initialization
+  ESP_LOGI(TAG, "Initializing wifi foundation");
+  ESP_ERROR_CHECK(esp_netif_init());
+  ESP_ERROR_CHECK(esp_event_loop_create_default());
   // init frame pool (after PSRAM init)
   // check if the buffer pool pointer is not NULL
   buffer_pool_init();  // initialize the static fb_pool variable

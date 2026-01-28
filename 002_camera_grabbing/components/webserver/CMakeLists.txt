@@ -3,6 +3,7 @@ idf_component_register(
     "src/webserver.c"
     "src/stream_handler.c"
     "src/api_handler.c"
+    "src/wifi.c"
 
   INCLUDE_DIRS
     "include"
@@ -13,6 +14,8 @@ idf_component_register(
     esp_netif         # network interface
     esp_wifi              # wifi support
     nvs_flash         # for storing settings
+    display
+    esp32-camera
 
   # # private requirements
   # PRIV_REQUIRES

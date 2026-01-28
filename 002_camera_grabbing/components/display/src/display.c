@@ -14,6 +14,15 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 
 static const char* DISPTAG = "display";
 
+camera_fb_t* get_display_fb(void) {
+  buffer_pool_t* pool = get_buffer_pool();
+  if (!pool) {
+    ESP_LOGE(DISPTAG, "The buffer pool is NULL");
+    return NULL;
+  }
+
+  return pool->buffers[POOL_SIZE];
+}
 
 void frame_display_task(void* pvParameters) {
   ESP_LOGD(DISPTAG, "displaying a frame (to be implemented)\n");
