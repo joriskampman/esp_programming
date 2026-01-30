@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="refresh" content="0.1">
+    <title>ESP32 Stream</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            text-align: center;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <img id="stream", src="/stream" />
+
+    <script>
+        // simple auto-refresh
+        setInterval(function() {
+            var img = document.getElementById('stream');
+            img.src = '\stream?t=' + new Date().getTime();
+        }, 1000);  // 1000 ms = 1Hz
+    </script>
+</body>
+</html>

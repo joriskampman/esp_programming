@@ -1,11 +1,13 @@
-#ifdef WEBSERVER_H
+#ifndef WEBSERVER_H
 #define WEBSERVER_H
 #pragma once
 
 #include "esp_http_server.h"
-#include "esp_log.h"
 
-httpd_handle_t start_webserver(void);
+void start_webserver(void);
+
+httpd_handle_t get_webserver_handle(void);
+
 void stop_webserver(httpd_handle_t server);
 
 #endif

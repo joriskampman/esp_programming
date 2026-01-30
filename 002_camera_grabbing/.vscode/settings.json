@@ -17,7 +17,7 @@
   "idf.port": "/dev/ttyACM0",
   "C_Cpp.intelliSenseEngine": "disabled",
   "idf.currentSetup": "/home/joris/esp/v5.5.1/esp-idf",
-  "idf.espIdfPath": "/home/joris/esp/v5.5.1/esp-idf",
+  "idf.espIdfPath": "/home/joris/esp/latest",
   "idf.toolsPath": "/home/joris/.espressif",
   "idf.pythonInstallPath": "/usr/bin/python3"
 }

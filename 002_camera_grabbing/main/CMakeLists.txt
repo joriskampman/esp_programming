@@ -14,8 +14,9 @@ idf_component_register(
     esp32-camera
     buffer_pool
     display
-    # vision_processing
-    # webserver
+    vision_processing
+    webserver
+    wifi
 
   # note that there are no direct ESP-IDF components required.
   # They are via the components themselves

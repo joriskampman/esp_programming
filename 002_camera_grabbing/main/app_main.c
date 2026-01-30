@@ -27,6 +27,11 @@ author: Joris Kampman, Saxion SMART, winter 25/26
 #include "display.h"
 #include "vision_processing.h"
 #include "wifi.h"
+#include "esp_netif.h"
+#include "esp_event.h"
+#include "webserver.h"
+#include "esp_http_server.h"
+
 
 static const char* TAG = "main";
 
@@ -59,6 +64,7 @@ void app_main(void) {
   ESP_LOGI(TAG, "Initializing wifi foundation");
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
+
   // init frame pool (after PSRAM init)
   // check if the buffer pool pointer is not NULL
   buffer_pool_init();  // initialize the static fb_pool variable
@@ -69,12 +75,22 @@ void app_main(void) {
   ESP_LOGI(TAG, "Buffer pool initialized");
   print_buffer_use();
 
+  // ----------- start wifi AP --------------------------------
+  ESP_LOGI(TAG, "Starting WiFi Access Point");
+  start_wifi_sta();
+  vTaskDelay(pdMS_TO_TICKS(2000.0f));
+
+
   // create Queue, if fail --> return
   frame_event_queue = xQueueCreate(get_queue_depth(), sizeof(frame_event_t));
   if (frame_event_queue == NULL) {
     ESP_LOGE(TAG, "Failed to create frame event queue.");
     return;
   }
+
+  // ------------ start webserver -----------------------------------
+  ESP_LOGI(TAG, "Starting webserver");
+  start_webserver();
 
   // ------------------------  monitoring task ---------------------------------------------
   static perf_mon_t perf_mon = {0};

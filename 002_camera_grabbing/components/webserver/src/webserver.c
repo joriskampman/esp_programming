@@ -3,6 +3,10 @@
 #include "esp_log.h"
 #include "esp_http_server.h"
 #include "freertos/projdefs.h"
+#include "stream_handler.h"
+#include "api_handler.h"
+
+// #include "freertos/projdefs.h"
 
 static const char* SERVTAG = "webserver";
 static httpd_handle_t server = NULL;
@@ -15,45 +19,52 @@ void stop_webserver(httpd_handle_t server) {
   // 1. websockets (if existing)
 
   // 2. unregister URI handlers
+  api_unregister_handlers(server);
+  stream_unregister_handlers(server);
 
   // 3. stop httpd server core
+  esp_err_t stop_success;
   int max_retries = 10;
   int itry = 0;
   ESP_LOGI(SERVTAG, "Maximum %d attempts to stop the webserver", max_retries);
-  esp_err_t stop_success = ESP_FAIL;
-  while (stop_success != ESP_OK) {
+  for (int itry=0; itry < max_retries; itry++) {
     stop_success = httpd_stop(server);
     if (stop_success == ESP_OK) {
       ESP_LOGI(SERVTAG, "The webserver stopped at attempt (%d)", itry);
+      server = NULL;
+      return;
     }
-
     ESP_LOGW(SERVTAG, "Stopping failed. Retrying ..");
-  } // while (1)
-  if (stop_success != ESP_OK) {
-    ESP_LOGE(SERVTAG, "The server could not be stopped!");
-    return;
-  }
+    vTaskDelay(pdMS_TO_TICKS(100));
 
-  //4. free memory allocated (if any)
+  } // for tries to stop
 
-  // 5. set handle to NULL
-  server = NULL;
+  ESP_LOGE(SERVTAG, "The server could not be stopped!");
 }
 
 
-httpd_handle_t start_webserver(void) {
+void start_webserver(void) {
   /*
   start the webserver
   */
 
-  // get the default config
-  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  if (server) {
+    ESP_LOGW(SERVTAG, "Webserver already started");
+    return;
+  }
 
-  config.max_open_sockets = 2;
+  ESP_LOGI(SERVTAG, "Starting HTTP web server");
+
+
+  // configure the HTTP server
+  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.server_port = 80;  // standard http port
+  config.max_uri_handlers = 5;  // root, api/status and /stream
+  config.max_open_sockets = 1;  // single client only
   config.lru_purge_enable = false;  //
   config.recv_wait_timeout = 5;  // seconds
   config.send_wait_timeout = 5;  // seconds
-  config.stack_size = 6144;  // default 4096, the minimum stack size allowed for the server task
+  config.stack_size = 8192;  // default 4096, increased for image processing
 
   esp_err_t success = ESP_FAIL;
   int max_retries = 5;
@@ -70,12 +81,22 @@ httpd_handle_t start_webserver(void) {
     itry++;
   } // loop maximum retries
 
+  // ------------- register URI handlers --------------------------------
+  ESP_LOGI(SERVTAG, "Registering stream handlers ...");
+  stream_register_handlers(server);
+  ESP_LOGI(SERVTAG, "Registering api handlers ...");
+  api_register_handlers(server);
+
   if (success != ESP_OK) {
     ESP_LOGE(SERVTAG, "The webserver FAILED to start after (%d) attempts! ", max_retries);
-    return NULL;
+    return;
   }
 
-  // connection established
+  ESP_LOGI(SERVTAG, "HTTP server started on port %d", config.server_port);
+  ESP_LOGI(SERVTAG, "Connect to http://192.168.4.1 in your browser");
+}
+
+httpd_handle_t get_webserver_handle(void) {
   return server;
 }
 

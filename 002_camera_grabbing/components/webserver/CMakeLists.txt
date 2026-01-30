@@ -3,7 +3,6 @@ idf_component_register(
     "src/webserver.c"
     "src/stream_handler.c"
     "src/api_handler.c"
-    "src/wifi.c"
 
   INCLUDE_DIRS
     "include"
