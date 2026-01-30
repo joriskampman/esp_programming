@@ -12,6 +12,9 @@ Makefile
 *.map
 *.log
 
+# generated files
+wifi_config.h
+
 # dependencies and components
 managed_components
 dependencies.lock

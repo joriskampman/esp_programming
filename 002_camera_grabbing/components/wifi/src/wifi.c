@@ -4,9 +4,11 @@
 #include "esp_wifi_types_generic.h"
 #include "esp_netif.h"
 #include "esp_log.h"
+#include "wifi_config.h"
 
 
 static const char* WTAG = "wifi";
+
 
 void start_wifi_sta(void) {
   // 1. Create default STA network interface
@@ -26,8 +28,8 @@ void start_wifi_sta(void) {
   // Configure STA settings - REPLACE WITH YOUR NETWORK CREDENTIALS
   wifi_config_t wifi_config = {
     .sta = {
-      .ssid = "router_jomasef",      // Your network name
-      .password = "76GJUYGTBMIK",
+      .ssid = WIFI_STA_SSID,      // Your network name
+      .password = WIFI_STA_PASS,
       .threshold.authmode = WIFI_AUTH_WPA2_PSK, // Most common
     }
   };
@@ -84,9 +86,9 @@ void start_wifi_ap(void) {
   // configure AP settings
   wifi_config_t wifi_config = {
     .ap = {
-      .ssid = "CablePeeler",      // network name
-      .password = "password",
-      .ssid_len = strlen("CablePeeler"),
+      .ssid = WIFI_AP_SSID,      // network name
+      .password = WIFI_AP_PASS,
+      .ssid_len = strlen(WIFI_AP_SSID),
       .channel = 6,                    // pick a channel ---> check best
       .authmode = WIFI_AUTH_WPA2_PSK, // security protocol
       .max_connection = 10,        // 1 connection allowed

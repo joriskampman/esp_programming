@@ -1,7 +1,14 @@
 {
-  "folders": [
-    {
-      "path": "main"
-    }
-  ]
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"clangd.arguments": [
+			"--background-index",
+			"--query-driver=**",
+			"--compile-commands-dir=/home/joris/Documents/004_home_projects/001_personal_projects/004_esp_programming/002_camera_grabbing/build"
+		]
+	}
 }
