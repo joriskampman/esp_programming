@@ -103,6 +103,7 @@ typedef struct {
   uint8_t loop_count;
 } animation_config_t;
 
+
 typedef struct {
   uint8_t ifrom;
   uint8_t ito;
